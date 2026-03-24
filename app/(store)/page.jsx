@@ -31,8 +31,13 @@ export default async function HomePage() {
   return (
     <>
       {/* Hero */}
-      <section className="relative h-screen flex items-end overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-brand-black/20 to-brand-black z-10" />
+      <section className="relative h-screen flex flex-col justify-end overflow-hidden">
+        {/* Overlays */}
+        <div className="absolute inset-0 z-10 pointer-events-none">
+          <div className="absolute inset-0 bg-gradient-to-b from-brand-black/70 via-transparent to-brand-black/90" />
+          <div className="absolute inset-0 bg-gradient-to-r from-brand-black/50 via-transparent to-transparent" />
+        </div>
+
         <Image
           src="https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=1600&q=80"
           alt="East Division hero — premium sneakers"
@@ -40,23 +45,33 @@ export default async function HomePage() {
           priority
           className="object-cover object-center"
         />
-        <div className="relative z-20 w-full max-w-7xl mx-auto px-4 sm:px-6 pb-20">
-          <p className="section-label mb-4">East London — Est. 2019</p>
-          <h1 className="display-heading text-[clamp(4rem,12vw,10rem)] leading-none text-white mb-8">
-            EAST<br />DIVISION
-          </h1>
-          <p className="text-lg text-white/60 max-w-md mb-10 leading-relaxed">
-            Independent streetwear & sneaker store.<br />
-            Curated selection. Authentic culture.
+
+        <div className="relative z-20 w-full max-w-7xl mx-auto px-4 sm:px-6 pb-16 md:pb-24">
+          <p className="section-label mb-4 tracking-[0.25em] text-white/50 text-xs uppercase">
+            East London — Est. 2019
           </p>
-          <div className="flex flex-wrap gap-4">
-            <Link href="/shop" className="btn-primary">
-              Shop Now
-            </Link>
-            <Link href="/about" className="btn-outline">
-              Our Story
-            </Link>
+          <h1
+            className="display-heading leading-[0.88] text-white mb-6"
+            style={{ fontSize: 'clamp(3.5rem, 10vw, 8.5rem)' }}
+          >
+            <span className="block">EAST</span>
+            <span className="block">DIVISION</span>
+          </h1>
+          <div className="w-14 h-px bg-white/30 mb-6" />
+          <p className="text-base text-white/55 max-w-sm mb-10 leading-relaxed">
+            Independent streetwear & sneaker store.
+            <br />Curated selection. Authentic culture.
+          </p>
+          <div className="flex flex-wrap gap-3">
+            <Link href="/shop" className="btn-primary">Shop Now</Link>
+            <Link href="/about" className="btn-outline">Our Story</Link>
           </div>
+        </div>
+
+        {/* Scroll indicator */}
+        <div className="absolute bottom-8 right-6 z-20 flex flex-col items-center gap-2 opacity-40">
+          <div className="w-px h-12 bg-white/50" />
+          <span className="text-white text-[10px] tracking-widest uppercase" style={{ writingMode: 'vertical-rl' }}>Scroll</span>
         </div>
       </section>
 
