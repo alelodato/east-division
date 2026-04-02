@@ -16,6 +16,14 @@ export default function ProductDetails({ product }) {
   const variants = product.variants ?? []
   const currentImage = images[imageIndex]
 
+  const discount = product.discount_percent ?? 0
+  const originalPrice = product.price
+  const discountedPrice = discount > 0
+    ? (originalPrice * (1 - discount / 100))
+    : null
+
+  const cartPrice = discountedPrice ?? originalPrice
+
   const handleAddToCart = () => {
     if (!selectedVariant || selectedVariant.stock === 0) return
     addItem({
@@ -23,7 +31,7 @@ export default function ProductDetails({ product }) {
       variantId: selectedVariant.id,
       name: product.name,
       size: selectedVariant.size,
-      price: product.price,
+      price: cartPrice,
       quantity: 1,
       image: images[0]?.image_url ?? '',
       slug: product.slug,
@@ -36,7 +44,6 @@ export default function ProductDetails({ product }) {
     <div className="grid md:grid-cols-2 gap-10 lg:gap-16">
       {/* Images */}
       <div>
-        {/* Main image */}
         <div className="relative aspect-square overflow-hidden bg-zinc-900 mb-3">
           {currentImage ? (
             <Image
@@ -50,6 +57,31 @@ export default function ProductDetails({ product }) {
           ) : (
             <div className="absolute inset-0 flex items-center justify-center text-white/10 text-xs tracking-widest uppercase">
               No image
+            </div>
+          )}
+
+          {/* Label badge sull'immagine */}
+          {product.label && (
+            <div className="absolute top-3 left-3">
+              {product.label === 'new' && (
+                <span className="text-[10px] tracking-widest uppercase bg-white text-black px-2 py-0.5 font-semibold">
+                  New
+                </span>
+              )}
+              {product.label === 'sale' && (
+                <span className="text-[10px] tracking-widest uppercase bg-red-500 text-white px-2 py-0.5 font-semibold">
+                  Sale
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Discount badge */}
+          {discount > 0 && (
+            <div className="absolute top-3 right-3">
+              <span className="text-[10px] tracking-widest uppercase bg-red-500 text-white px-2 py-0.5 font-semibold">
+                -{discount}%
+              </span>
             </div>
           )}
 
@@ -73,7 +105,6 @@ export default function ProductDetails({ product }) {
           )}
         </div>
 
-        {/* Thumbnails */}
         {images.length > 1 && (
           <div className="flex gap-2">
             {images.map((img, i) => (
@@ -104,7 +135,21 @@ export default function ProductDetails({ product }) {
         <h1 className="text-2xl sm:text-3xl font-semibold text-white mb-3 leading-tight">
           {product.name}
         </h1>
-        <p className="text-2xl text-white mb-6">£{product.price.toFixed(2)}</p>
+
+        {/* Prezzo */}
+        <div className="flex items-center gap-3 mb-6">
+          {discountedPrice ? (
+            <>
+              <span className="text-2xl text-white/30 line-through">£{originalPrice.toFixed(2)}</span>
+              <span className="text-2xl text-red-400 font-medium">£{discountedPrice.toFixed(2)}</span>
+              <span className="text-xs bg-red-500 text-white px-2 py-0.5 tracking-widest uppercase font-semibold">
+                -{discount}%
+              </span>
+            </>
+          ) : (
+            <span className="text-2xl text-white">£{originalPrice.toFixed(2)}</span>
+          )}
+        </div>
 
         {product.description && (
           <p className="text-white/50 leading-relaxed mb-8 text-sm">{product.description}</p>
@@ -138,8 +183,8 @@ export default function ProductDetails({ product }) {
                     isSelected
                       ? 'border-white bg-white text-brand-black font-semibold'
                       : isOutOfStock
-                      ? 'border-white/5 text-white/15 cursor-not-allowed line-through'
-                      : 'border-white/20 text-white/70 hover:border-white hover:text-white'
+                        ? 'border-white/5 text-white/15 cursor-not-allowed line-through'
+                        : 'border-white/20 text-white/70 hover:border-white hover:text-white'
                   )}
                 >
                   {variant.size}
@@ -155,9 +200,7 @@ export default function ProductDetails({ product }) {
           disabled={!selectedVariant || selectedVariant.stock === 0}
           className={clsx(
             'w-full flex items-center justify-center gap-2 py-4 text-sm font-semibold tracking-widest uppercase transition-all',
-            added
-              ? 'bg-brand-accent text-brand-black'
-              : 'btn-primary'
+            added ? 'bg-brand-accent text-brand-black' : 'btn-primary'
           )}
         >
           <ShoppingBag size={16} />

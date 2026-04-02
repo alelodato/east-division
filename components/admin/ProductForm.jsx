@@ -3,9 +3,13 @@
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
-import { Plus, Trash2, Upload, X } from 'lucide-react'
+import { Plus, Upload, X } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import clsx from 'clsx'
+
+function generateSlug(name) {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+}
 
 export default function ProductForm({ product }) {
   const router = useRouter()
@@ -15,13 +19,13 @@ export default function ProductForm({ product }) {
   const [error, setError] = useState('')
   const [uploadingImage, setUploadingImage] = useState(false)
 
-  // Form state
   const [name, setName] = useState(product?.name ?? '')
-  const [slug, setSlug] = useState(product?.slug ?? '')
   const [description, setDescription] = useState(product?.description ?? '')
   const [price, setPrice] = useState(product?.price?.toString() ?? '')
   const [category, setCategory] = useState(product?.category ?? 'sneakers')
   const [featured, setFeatured] = useState(product?.featured ?? false)
+  const [discountPercent, setDiscountPercent] = useState(product?.discount_percent ?? 0)
+  const [label, setLabel] = useState(product?.label ?? '')
 
   const [variants, setVariants] = useState(
     product?.variants?.map(v => ({ id: v.id, size: v.size, stock: v.stock, sku: v.sku })) ?? [
@@ -29,15 +33,9 @@ export default function ProductForm({ product }) {
     ]
   )
 
+  // Immagini già salvate (edit) + immagini locali in anteprima (create)
   const [images, setImages] = useState(product?.images ?? [])
-
-  // Auto-generate slug from name
-  const handleNameChange = (val) => {
-    setName(val)
-    if (!product) {
-      setSlug(val.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''))
-    }
-  }
+  const [pendingImages, setPendingImages] = useState([]) // { file, previewUrl }
 
   const addVariant = () =>
     setVariants(prev => [...prev, { size: '', stock: 0, sku: '' }])
@@ -48,42 +46,53 @@ export default function ProductForm({ product }) {
   const updateVariant = (index, field, value) =>
     setVariants(prev => prev.map((v, i) => (i === index ? { ...v, [field]: value } : v)))
 
+  // Gestione immagini in modalità edit (già salvate su Supabase)
   const handleImageUpload = async (e) => {
     const file = e.target.files?.[0]
-    if (!file || !product?.id) return
+    if (!file) return
 
-    setUploadingImage(true)
-    const supabase = createClient()
-    const ext = file.name.split('.').pop()
-    const path = `${product.id}/${Date.now()}.${ext}`
+    if (product?.id) {
+      // Edit mode → upload diretto
+      setUploadingImage(true)
+      const supabase = createClient()
+      const ext = file.name.split('.').pop()
+      const path = `${product.id}/${Date.now()}.${ext}`
 
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from('product-images')
-      .upload(path, file)
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('product-images')
+        .upload(path, file)
 
-    if (uploadError) {
-      setError(`Upload failed: ${uploadError.message}`)
+      if (uploadError) {
+        setError(`Upload failed: ${uploadError.message}`)
+        setUploadingImage(false)
+        return
+      }
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('product-images')
+        .getPublicUrl(uploadData.path)
+
+      const { data: imgData } = await supabase
+        .from('product_images')
+        .insert({
+          product_id: product.id,
+          image_url: publicUrl,
+          alt_text: name,
+          sort_order: images.length,
+        })
+        .select()
+        .single()
+
+      if (imgData) setImages(prev => [...prev, imgData])
       setUploadingImage(false)
-      return
+    } else {
+      // Create mode → anteprima locale
+      const previewUrl = URL.createObjectURL(file)
+      setPendingImages(prev => [...prev, { file, previewUrl }])
     }
 
-    const { data: { publicUrl } } = supabase.storage
-      .from('product-images')
-      .getPublicUrl(uploadData.path)
-
-    const { data: imgData } = await supabase
-      .from('product_images')
-      .insert({
-        product_id: product.id,
-        image_url: publicUrl,
-        alt_text: name,
-        sort_order: images.length,
-      })
-      .select()
-      .single()
-
-    if (imgData) setImages(prev => [...prev, imgData])
-    setUploadingImage(false)
+    // Reset input
+    e.target.value = ''
   }
 
   const handleRemoveImage = async (imgId) => {
@@ -92,12 +101,20 @@ export default function ProductForm({ product }) {
     setImages(prev => prev.filter(i => i.id !== imgId))
   }
 
+  const handleRemovePending = (index) => {
+    setPendingImages(prev => {
+      URL.revokeObjectURL(prev[index].previewUrl)
+      return prev.filter((_, i) => i !== index)
+    })
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
     setLoading(true)
 
     const supabase = createClient()
+    const slug = generateSlug(name)
     const productData = {
       name,
       slug,
@@ -105,6 +122,8 @@ export default function ProductForm({ product }) {
       price: parseFloat(price),
       category,
       featured,
+      discount_percent: discountPercent,
+      label: label || null,
     }
 
     try {
@@ -144,6 +163,30 @@ export default function ProductForm({ product }) {
         }
       }
 
+      // Upload immagini pending (solo in create mode)
+      for (let i = 0; i < pendingImages.length; i++) {
+        const { file } = pendingImages[i]
+        const ext = file.name.split('.').pop()
+        const path = `${productId}/${Date.now()}-${i}.${ext}`
+
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('product-images')
+          .upload(path, file)
+
+        if (uploadError) continue
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('product-images')
+          .getPublicUrl(uploadData.path)
+
+        await supabase.from('product_images').insert({
+          product_id: productId,
+          image_url: publicUrl,
+          alt_text: name,
+          sort_order: i,
+        })
+      }
+
       router.push('/admin/products')
       router.refresh()
     } catch (err) {
@@ -156,6 +199,16 @@ export default function ProductForm({ product }) {
   const inputClass =
     'w-full bg-zinc-800 border border-white/10 text-white text-sm px-4 py-2.5 focus:outline-none focus:border-white/40 transition-colors placeholder:text-white/20'
   const labelClass = 'block text-xs tracking-widest uppercase text-white/40 mb-1.5'
+
+  // Tutte le immagini da mostrare (salvate + pending)
+  const allImages = [
+    ...images.map(img => ({ type: 'saved', ...img })),
+    ...pendingImages.map((p, i) => ({ type: 'pending', previewUrl: p.previewUrl, index: i })),
+  ]
+
+  const discountedPrice = discountPercent > 0 && price
+    ? (parseFloat(price) * (1 - discountPercent / 100)).toFixed(2)
+    : null
 
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
@@ -175,23 +228,10 @@ export default function ProductForm({ product }) {
             type="text"
             required
             value={name}
-            onChange={e => handleNameChange(e.target.value)}
+            onChange={e => setName(e.target.value)}
             className={inputClass}
             placeholder="e.g. Air Force One Low White"
           />
-        </div>
-
-        <div>
-          <label className={labelClass}>Slug *</label>
-          <input
-            type="text"
-            required
-            value={slug}
-            onChange={e => setSlug(e.target.value)}
-            className={inputClass}
-            placeholder="air-force-one-low-white"
-          />
-          <p className="text-xs text-white/20 mt-1">URL: /product/{slug || '...'}</p>
         </div>
 
         <div>
@@ -242,6 +282,47 @@ export default function ProductForm({ product }) {
           />
           <span className="text-sm text-white/70">Featured product (shown on homepage)</span>
         </label>
+      </div>
+
+      {/* Pricing & Label */}
+      <div className="bg-zinc-900 border border-white/5 p-6 space-y-4">
+        <h2 className="text-sm font-semibold tracking-widest uppercase mb-4">Pricing & Label</h2>
+
+        <div className="grid sm:grid-cols-2 gap-4">
+          <div>
+            <label className={labelClass}>Discount (%)</label>
+            <input
+              type="number"
+              min="0"
+              max="90"
+              value={discountPercent}
+              onChange={e => setDiscountPercent(parseInt(e.target.value) || 0)}
+              className={inputClass}
+              placeholder="0"
+            />
+            {discountedPrice && (
+              <p className="text-xs mt-1.5 text-white/40">
+                <span className="line-through text-white/20">£{parseFloat(price).toFixed(2)}</span>
+                {' '}→{' '}
+                <span className="text-green-400">£{discountedPrice}</span>
+                {' '}(-{discountPercent}%)
+              </p>
+            )}
+          </div>
+
+          <div>
+            <label className={labelClass}>Label</label>
+            <select
+              value={label}
+              onChange={e => setLabel(e.target.value)}
+              className={inputClass}
+            >
+              <option value="">No label</option>
+              <option value="new">New</option>
+              <option value="sale">Sale</option>
+            </select>
+          </div>
+        </div>
       </div>
 
       {/* Variants */}
@@ -301,12 +382,12 @@ export default function ProductForm({ product }) {
       </div>
 
       {/* Images */}
-      {product && (
-        <div className="bg-zinc-900 border border-white/5 p-6">
-          <h2 className="text-sm font-semibold tracking-widest uppercase mb-4">Images</h2>
+      <div className="bg-zinc-900 border border-white/5 p-6">
+        <h2 className="text-sm font-semibold tracking-widest uppercase mb-4">Images</h2>
 
-          <div className="flex flex-wrap gap-3 mb-4">
-            {images.map(img => (
+        <div className="flex flex-wrap gap-3 mb-4">
+          {allImages.map((img) =>
+            img.type === 'saved' ? (
               <div key={img.id} className="relative w-20 h-20 group">
                 <Image
                   src={img.image_url}
@@ -323,32 +404,54 @@ export default function ProductForm({ product }) {
                   <X size={10} />
                 </button>
               </div>
-            ))}
+            ) : (
+              <div key={`pending-${img.index}`} className="relative w-20 h-20 group">
+                <Image
+                  src={img.previewUrl}
+                  alt="Preview"
+                  fill
+                  className="object-cover"
+                  sizes="80px"
+                />
+                <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                  <span className="text-[9px] text-white/60 tracking-wider">PENDING</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleRemovePending(img.index)}
+                  className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <X size={10} />
+                </button>
+              </div>
+            )
+          )}
 
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploadingImage}
-              className={clsx(
-                'w-20 h-20 border-2 border-dashed border-white/20 flex flex-col items-center justify-center gap-1 hover:border-white/40 transition-colors',
-                uploadingImage && 'opacity-50 cursor-not-allowed'
-              )}
-            >
-              <Upload size={14} className="text-white/40" />
-              <span className="text-[10px] text-white/30">{uploadingImage ? 'Uploading' : 'Upload'}</span>
-            </button>
-          </div>
-
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={handleImageUpload}
-          />
-          <p className="text-xs text-white/20">First image is used as the product thumbnail. Save the product first before uploading images.</p>
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploadingImage}
+            className={clsx(
+              'w-20 h-20 border-2 border-dashed border-white/20 flex flex-col items-center justify-center gap-1 hover:border-white/40 transition-colors',
+              uploadingImage && 'opacity-50 cursor-not-allowed'
+            )}
+          >
+            <Upload size={14} className="text-white/40" />
+            <span className="text-[10px] text-white/30">
+              {uploadingImage ? 'Uploading' : 'Upload'}
+            </span>
+          </button>
         </div>
-      )}
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleImageUpload}
+        />
+        <p className="text-xs text-white/20">First image is used as the product thumbnail.</p>
+      </div>
 
       {/* Submit */}
       <div className="flex gap-3">

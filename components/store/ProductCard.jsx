@@ -9,6 +9,14 @@ export default function ProductCard({ product }) {
     : 0
   const isSoldOut = lowestStock === 0
 
+  const discount = product.discount_percent ?? 0
+  const originalPrice = product.price
+  const discountedPrice = discount > 0
+    ? (originalPrice * (1 - discount / 100))
+    : null
+
+  const label = product.label // 'new' | 'sale' | null
+
   return (
     <Link href={`/product/${product.slug}`} className="group block">
       <div className="relative aspect-square overflow-hidden bg-zinc-900">
@@ -45,10 +53,27 @@ export default function ProductCard({ product }) {
           </div>
         )}
 
-        {product.featured && !isSoldOut && (
+        {/* Label badge */}
+        {!isSoldOut && label && (
           <div className="absolute top-3 left-3">
-            <span className="text-[10px] tracking-widest uppercase bg-brand-accent text-brand-black px-2 py-0.5 font-semibold">
-              Featured
+            {label === 'new' && (
+              <span className="text-[10px] tracking-widest uppercase bg-white text-black px-2 py-0.5 font-semibold">
+                New
+              </span>
+            )}
+            {label === 'sale' && (
+              <span className="text-[10px] tracking-widest uppercase bg-red-500 text-white px-2 py-0.5 font-semibold">
+                Sale
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Discount badge */}
+        {!isSoldOut && discount > 0 && (
+          <div className="absolute top-3 right-3">
+            <span className="text-[10px] tracking-widest uppercase bg-red-500 text-white px-2 py-0.5 font-semibold">
+              -{discount}%
             </span>
           </div>
         )}
@@ -57,7 +82,16 @@ export default function ProductCard({ product }) {
       <div className="mt-3 space-y-1">
         <p className="text-xs text-white/40 tracking-widest uppercase">{product.category}</p>
         <p className="text-sm font-medium text-white leading-tight">{product.name}</p>
-        <p className="text-sm text-white/70">£{product.price.toFixed(2)}</p>
+        <div className="flex items-center gap-2">
+          {discountedPrice ? (
+            <>
+              <span className="text-sm text-white/70 line-through">£{originalPrice.toFixed(2)}</span>
+              <span className="text-sm text-red-400 font-medium">£{discountedPrice.toFixed(2)}</span>
+            </>
+          ) : (
+            <span className="text-sm text-white/70">£{originalPrice.toFixed(2)}</span>
+          )}
+        </div>
       </div>
     </Link>
   )
