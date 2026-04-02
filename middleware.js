@@ -2,7 +2,11 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
 
 export async function middleware(request) {
+  console.log('MIDDLEWARE PATH:', request.nextUrl.pathname)
   let supabaseResponse = NextResponse.next({ request })
+
+  const response = NextResponse.next({ request })
+  response.headers.set('x-pathname', request.nextUrl.pathname)
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -27,9 +31,19 @@ export async function middleware(request) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  const isAdminRoute =
-    request.nextUrl.pathname.startsWith('/admin') &&
-    !request.nextUrl.pathname.startsWith('/admin/login')
+  const pathname = request.nextUrl.pathname
+
+  if (pathname === '/admin/login') {
+    return supabaseResponse
+  }
+
+  const isAdminRoute = pathname.startsWith('/admin')
+
+  if (isAdminRoute && !user) {
+    const redirectUrl = request.nextUrl.clone()
+    redirectUrl.pathname = '/admin/login'
+    return NextResponse.redirect(redirectUrl)
+  }
 
   if (isAdminRoute && !user) {
     const redirectUrl = request.nextUrl.clone()

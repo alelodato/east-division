@@ -7,6 +7,7 @@ export const metadata = { title: 'Admin Login — East Division' }
 export default async function AdminLoginPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
+  console.log('USER IN LOGIN PAGE:', user)
   if (user) redirect('/admin')
 
   return (
