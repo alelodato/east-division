@@ -16,6 +16,8 @@ export default function AdminLoginForm() {
     setError('')
     setLoading(true)
 
+    console.log('SUPABASE URL:', process.env.NEXT_PUBLIC_SUPABASE_URL)
+
     const supabase = createClient()
     const { error } = await supabase.auth.signInWithPassword({ email, password })
 
