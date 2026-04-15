@@ -7,7 +7,14 @@ async function getProduct(slug) {
   const supabase = await createClient()
   const { data } = await supabase
     .from('products')
-    .select('*, images:product_images(* , sort_order), variants:product_variants(*)')
+    .select(`
+      *,
+      colors:product_colors(
+        *,
+        images:product_images(*),
+        variants:product_variants(*)
+      )
+    `)
     .eq('slug', slug)
     .single()
   return data

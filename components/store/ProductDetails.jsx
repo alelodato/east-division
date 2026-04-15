@@ -6,23 +6,46 @@ import { ShoppingBag, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useCart } from './CartProvider'
 import clsx from 'clsx'
 
+const COLOR_HEX = {
+  Black: '#111', White: '#fff', Grey: '#888', Navy: '#1a2744',
+  Brown: '#7c4a2d', Tan: '#c4a882', Olive: '#6b7c3a', Red: '#cc2222',
+  Blue: '#2255cc', Green: '#2a7a3b', Orange: '#e06820', Pink: '#e87ab0',
+  Purple: '#7744cc', Cream: '#f5f0e0', Beige: '#d4c9a8', Yellow: '#e8c830',
+  Burgundy: '#6e1a2a', Khaki: '#b5a882',
+}
+
 export default function ProductDetails({ product }) {
   const { addItem } = useCart()
+
+  const colors = product.colors ?? []
+  const hasColors = colors.length > 0
+
+  const [selectedColor, setSelectedColor] = useState(hasColors ? colors[0] : null)
   const [selectedVariant, setSelectedVariant] = useState(null)
   const [imageIndex, setImageIndex] = useState(0)
   const [added, setAdded] = useState(false)
 
-  const images = product.images ?? []
-  const variants = product.variants ?? []
+  // Immagini e varianti in base al colore selezionato
+  const images = hasColors
+    ? (selectedColor?.images ?? [])
+    : (product.images ?? [])
+
+  const variants = hasColors
+    ? (selectedColor?.variants ?? [])
+    : (product.variants ?? [])
+
   const currentImage = images[imageIndex]
 
   const discount = product.discount_percent ?? 0
   const originalPrice = product.price
-  const discountedPrice = discount > 0
-    ? (originalPrice * (1 - discount / 100))
-    : null
-
+  const discountedPrice = discount > 0 ? (originalPrice * (1 - discount / 100)) : null
   const cartPrice = discountedPrice ?? originalPrice
+
+  const handleColorChange = (color) => {
+    setSelectedColor(color)
+    setSelectedVariant(null)
+    setImageIndex(0)
+  }
 
   const handleAddToCart = () => {
     if (!selectedVariant || selectedVariant.stock === 0) return
@@ -31,6 +54,7 @@ export default function ProductDetails({ product }) {
       variantId: selectedVariant.id,
       name: product.name,
       size: selectedVariant.size,
+      color: selectedColor?.name,
       price: cartPrice,
       quantity: 1,
       image: images[0]?.image_url ?? '',
@@ -60,23 +84,17 @@ export default function ProductDetails({ product }) {
             </div>
           )}
 
-          {/* Label badge sull'immagine */}
           {product.label && (
             <div className="absolute top-3 left-3">
               {product.label === 'new' && (
-                <span className="text-[10px] tracking-widest uppercase bg-white text-black px-2 py-0.5 font-semibold">
-                  New
-                </span>
+                <span className="text-[10px] tracking-widest uppercase bg-white text-black px-2 py-0.5 font-semibold">New</span>
               )}
               {product.label === 'sale' && (
-                <span className="text-[10px] tracking-widest uppercase bg-red-500 text-white px-2 py-0.5 font-semibold">
-                  Sale
-                </span>
+                <span className="text-[10px] tracking-widest uppercase bg-red-500 text-white px-2 py-0.5 font-semibold">Sale</span>
               )}
             </div>
           )}
 
-          {/* Discount badge */}
           {discount > 0 && (
             <div className="absolute top-3 right-3">
               <span className="text-[10px] tracking-widest uppercase bg-red-500 text-white px-2 py-0.5 font-semibold">
@@ -90,14 +108,12 @@ export default function ProductDetails({ product }) {
               <button
                 onClick={() => setImageIndex(i => (i - 1 + images.length) % images.length)}
                 className="absolute left-3 top-1/2 -translate-y-1/2 p-2 bg-black/50 text-white hover:bg-black/70 transition-colors"
-                aria-label="Previous image"
               >
                 <ChevronLeft size={18} />
               </button>
               <button
                 onClick={() => setImageIndex(i => (i + 1) % images.length)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 p-2 bg-black/50 text-white hover:bg-black/70 transition-colors"
-                aria-label="Next image"
               >
                 <ChevronRight size={18} />
               </button>
@@ -116,13 +132,7 @@ export default function ProductDetails({ product }) {
                   i === imageIndex ? 'border-white' : 'border-transparent'
                 )}
               >
-                <Image
-                  src={img.image_url}
-                  alt={img.alt_text ?? ''}
-                  fill
-                  className="object-cover"
-                  sizes="64px"
-                />
+                <Image src={img.image_url} alt={img.alt_text ?? ''} fill className="object-cover" sizes="64px" />
               </button>
             ))}
           </div>
@@ -153,6 +163,34 @@ export default function ProductDetails({ product }) {
 
         {product.description && (
           <p className="text-white/50 leading-relaxed mb-8 text-sm">{product.description}</p>
+        )}
+
+        {/* Color Selector */}
+        {hasColors && (
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <p className="section-label">Color</p>
+              {selectedColor && (
+                <span className="text-xs text-white/40">{selectedColor.name}</span>
+              )}
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              {colors.map(color => (
+                <button
+                  key={color.id}
+                  onClick={() => handleColorChange(color)}
+                  title={color.name}
+                  className={clsx(
+                    'w-8 h-8 rounded-full border-2 transition-all',
+                    selectedColor?.id === color.id
+                      ? 'border-white scale-110'
+                      : 'border-white/20 hover:border-white/60'
+                  )}
+                  style={{ backgroundColor: COLOR_HEX[color.name] ?? '#888' }}
+                />
+              ))}
+            </div>
+          </div>
         )}
 
         {/* Size Selector */}
